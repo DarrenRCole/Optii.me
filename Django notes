@@ -1,0 +1,18 @@
+django-admin startproject NAMEOFPROJECT --> CREATES SKELETON PROJECT
+python manage.py runserver --> RUNS SERVER
+python manage.py startapp APPNAME --> CREATES APPLICATION (e.g., SCHEDULER)
+python manage.py makemigrations APPNAME --> CREATES DB STRUCTURE
+python manage.py migrate --> RUNS DB SETUP
+
+python manage.py shell --> OPENS PYTHON SCRIPT SHELL
+	from APPNAME.models import * --> LOAD MODELS INTO SHELL
+	VARNAME = Class.objects.create(attributes) --> CREATE OBJECT IN DB AND STORE TO VARIABLE
+		e.g., offering1 = Offering.objects.create(duration=60, section=section1)
+	VARNAME.OTHERMODELNAME_set.all() --> FINDS ALL ASSOCIATED MODEL INSTANCES OF OTHER MODEL TIED TO VARNAME
+		e.g., prof1.professorunavailability_set.all()
+
+
+NEXT TO DOS:
+	
+	Look up itertools
+	finish views.py
