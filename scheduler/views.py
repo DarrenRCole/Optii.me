@@ -9,36 +9,38 @@ PROF_H_CONSTRAINT_PENALTY = 10000
 PROF_H_CONSTRAINT_CODE = 2
 PROF_S_CONSTRAINT_PENALTY = 10
 PROF_S_CONSTRAINT_CODE = 1
-ROOM_CAPACITY_CONSTRAINT = 1000
-
+ROOM_TOO_SMALL_PENALTY = 9999
+ROOM_TOO_LARGE_PENALTY = 50
+NUM_DAILY_TIMESLOTS = 20
+NUM_DAYS_IN_WEEK = 5
 
 # Create your views here.
 def start_algorithm(request):
 	run_optimization()
 	return HttpResponse("A-OK!")
 
-def calculate_obj(course_sec_ID, room_timeslot_ID):
-    #FIND PENALTY FOR PROF CONSTRAINT
-    prof_ID = int(ImportCourseSections.course_sections[course_sec_ID].prof_ID)
-    timeslot_ID = InitRoomTimeslots.room_timeslots[room_timeslot_ID].timeslot.ID
-    constraint = ImportProfConstraints.prof_constraints[prof_ID][timeslot_ID]
+def calculate_obj(professor, offering, starting_timeslot, day, duration, prof_unavailability, room):
+    obj_value = 0
+	
+	#FIND PENALTY FOR PROF UNAVAILABILITY CONSTRAINT
+    for i in range (duration):
+    	if prof_unavailability[day][starting_timeslot+i] == PROF_S_CONSTRAINT_CODE:
+    		obj_value += PROF_S_CONSTRAINT_PENALTY
+    	elif prof_unavailability[day][starting_timeslot+i] == PROF_H_CONSTRAINT_CODE:
+    		obj_value += PROF_H_CONSTRAINT_PENALTY
 
-    if constraint == 2:
-        obj_value = prof_h_constraint_penalty
-    if constraint == 1:
-        obj_value = prof_s_constraint_penalty
-    else:
-        obj_value = 0
 
     #FIND PENALTY FOR CAPACITY CONSTRAINT
-    if InitRoomTimeslots.room_timeslots[room_timeslot_ID].room.capacity < ImportCourseSections.course_sections[course_sec_ID].capacity:
-        obj_value += room_capacity_constraint
+    if offering.capacity > room.capacity:
+        obj_value += ROOM_TOO_SMALL_PENALTY
+    elif offering.capacity < room.capacity:
+    	obj_value += ROOM_TOO_LARGE_PENALTY
 
     return obj_value
 
 
 def load_unavailability(professor):
-	prof_unavailability = [[0 for slots in range(20)] for days in range(5)]
+	prof_unavailability = [[0 for slots in range(NUM_DAILY_TIMESLOTS)] for days in range(NUM_DAYS_IN_WEEK)]
 	for unavailability in professor.professorunavailability_set.all():
 		day = unavailability.day
 		if day == 'm':
@@ -51,6 +53,10 @@ def load_unavailability(professor):
 			day = 3
 		elif day == 'f':
 			day = 4
+		elif day == 's':
+			day = 5
+		elif day == 'n':
+			day = 6
 
 		start_hour, start_minute = unavailability.start_time.split(":")
 		start_hour = int(start_hour)
@@ -58,35 +64,40 @@ def load_unavailability(professor):
 		end_hour, end_minute = unavailability.end_time.split(":")
 		end_hour = int(end_hour)
 		end_minute = int(end_minute)
-		
+		preference_level = unavailability.preference_level
+
 		start_slot = int((start_hour - 8)*2 + math.floor(start_minute/30))
 		end_slot = int((end_hour - 8)*2 + math.floor(end_minute/30))
 
 		for slot in range (start_slot, end_slot):
-			prof_unavailability[day][slot] = 1
+			if preference_level == 1:
+				prof_unavailability[day][slot] = 1
+			else:
+				prof_unavailability[day][slot] = 2
 
 	return prof_unavailability
 
-
 def run_optimization():
-    #ITERATE THROUGH ALL COURSE SECTIONS TO FIND BEST ROOM TIMESLOT CURRENTLY AVAILABLE
+    #ITERATE THROUGH ALL PROFESSORS
     for prof in Professor.objects.all():
     	prof_unavailability = load_unavailability(prof)
+    	
+    	#ITERATE THROUGH ALL OFFERINGS FOR PROFESSOR N
+    	for offering in Offering.objects.filter(section__professor=prof):
+    		best_obj = 1000000
+    		best_day = False
+    		best_start_time = False
+    		best_room = False
+    		duration = int(math.ceil(offering.duration/30))
 
-    #for offering in Offering.objects.all():
-        #best_obj = 100000
-        #for z in range(len(LoadTimeslots.timeslots)):
-            #for y in range(len(ImportRooms.rooms)):
-                #room_timeslot_ID = y + z*len(ImportRooms.rooms)
-                #if(InitRoomTimeslots.room_timeslots[room_timeslot_ID].course_section_ID is False):
-                    #current_obj = calculate_obj(x, room_timeslot_ID)
-                    #if current_obj<best_obj:
-                        #best_obj = current_obj
-                        #best_room_timeslot_ID = room_timeslot_ID
-
-        #STORE BEST COURSE/ROOM TIMESLOT COMBINATION
-        #InitRoomTimeslots.room_timeslots[best_room_timeslot_ID].course_section_ID = ImportCourseSections.course_sections[x].ID
-        #ImportCourseSections.course_sections[x].room_timeslot_ID = best_room_timeslot_ID
-        #print("SCHEDULING COURSESEC", InitRoomTimeslots.room_timeslots[best_room_timeslot_ID].course_section_ID)
-        #print("INTO RTS ID", ImportCourseSections.course_sections[x].room_timeslot_ID)
-        #print("OBJ", calculate_obj(x, best_room_timeslot_ID))
+    		for room in Room.objects.all():
+    			for i in range (len(prof_unavailability)):
+    				for j in range (len(prof_unavailability[i])-duration+1):
+    					current_obj = calculate_obj(professor=prof, offering=offering, starting_timeslot=j,
+    						day=i, duration=duration, prof_unavailability=prof_unavailability, room=room)
+    					if current_obj < best_obj:
+    						best_obj = current_obj
+    						best_day = i
+    						best_start_time = j
+    						best_room = room
+    		print (best_obj, best_day, best_start_time, best_room.number, offering.capacity)

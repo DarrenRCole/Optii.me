@@ -23,10 +23,10 @@ class Course(models.Model):
 	number = models.CharField(max_length=10)
 
 class Section(models.Model):
-	capacity = models.IntegerField()
 	professor = models.ForeignKey(Professor)
 	course = models.ForeignKey(Course)
 
 class Offering(models.Model):
 	duration = models.IntegerField()
+	capacity = models.IntegerField()
 	section = models.ForeignKey(Section)
