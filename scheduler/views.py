@@ -17,35 +17,39 @@ ROOM_IN_USE_PENALTY = 55555
 NUM_DAILY_TIMESLOTS = 20
 NUM_DAYS_IN_WEEK = 5
 
-# Create your views here.
+offerings = {}
+room_usage = {}
+
 def start_algorithm(request):
     run_optimization()
 
     return HttpResponse("A-OK!")
 
-def calculate_obj():
+def calculate_obj(schedule):
     obj_value = 0
     
-    #FIND PENALTY FOR PROF UNAVAILABILITY CONSTRAINT
-    for i in range (duration):
-        if prof_unavailability[day][starting_timeslot+i] == PROF_S_CONSTRAINT_CODE:
-            obj_value += PROF_S_CONSTRAINT_PENALTY
-        elif prof_unavailability[day][starting_timeslot+i] == PROF_H_CONSTRAINT_CODE:
-            obj_value += PROF_H_CONSTRAINT_PENALTY
+    for offering in schedule:
+        if schedule[offering][0] != False:
+            for unavailability in ProfessorUnavailability.objects.all():
+                start_hour, start_minute = unavailability.start_time.split(":")
+                start_hour = int(start_hour)
+                start_minute = int(start_minute)
+                end_hour, end_minute = unavailability.end_time.split(":")
+                end_hour = int(end_hour)
+                end_minute = int(end_minute)
+                preference_level = unavailability.preference_level
 
-        room_array = room_usage.get(room.id)
-        if room_array[day][starting_timeslot+i] == 1:
-            obj_value += 55555
+                start_slot = int((start_hour - 8)*2 + math.floor(start_minute/30))
+                end_slot = int((end_hour - 8)*2 + math.floor(end_minute/30))
 
-
-    #FIND PENALTY FOR CAPACITY CONSTRAINT
-    if offering.capacity > room.capacity:
-        obj_value += ROOM_TOO_SMALL_PENALTY
-    elif offering.capacity < room.capacity:
-        obj_value += ROOM_TOO_LARGE_PENALTY
+                for slot in range (start_slot, end_slot):
+                    if slot >= offering[2] and slot <= offering[3]: 
+                        if preference_level == PROF_S_CONSTRAINT_CODE:
+                            obj_value += PROF_S_CONSTRAINT_PENALTY
+                        elif preference_level == PROF_H_CONSTRAINT_CODE:
+                            obj_value += PROF_H_CONSTRAINT_PENALTY
 
     return obj_value
-
 
 def load_prof_unavailability():
     
@@ -79,20 +83,13 @@ def load_prof_unavailability():
                     prof_unavailability[professor.id][unavailability.day][slot] = 1
                 else:
                     prof_unavailability[professor.id][unavailability.day][slot] = 2
-    print prof_unavailability
 
 def run_optimization():
 
     load_prof_unavailability()
-
-    global offerings
-    offerings = {}
     
     for offering in Offering.objects.all():
-        offerings[offering.id] = (False, False, False)
-
-    global room_usage
-    room_usage = {}
+        offerings[offering.id] = (False, False, False, False) #ROOM, DAY, STARTING TIMESLOT, ENDING TIMESLOT
 
     for room in Room.objects.all():
         room_usage[room.id] = {
@@ -103,53 +100,38 @@ def run_optimization():
         'f': [0] * NUM_DAILY_TIMESLOTS,
         }
 
+    solve (offerings, not_scheduled = len(offerings))
 
-def solve (offerings, not_scheduled = len(offerings)):
-    if empties == 0:
-        return obj_value(offerings)
-    for offering in offerings:
-        if offering[0] != False:
+
+def solve (schedule, not_scheduled):
+    if not_scheduled == 0:
+        print schedule
+        print (calculate_obj(schedule))
+        return (calculate_obj(schedule)==0)
+
+    for offering in schedule:
+        if schedule[offering][0] != False:
             continue
-        new_offerings = copy(offerings)
+        new_schedule = copy(schedule)
         for room in room_usage:
-            for day in room:
-                for timeslot in day:
-                    room_week_usage = room_usage[room]
-                    room_day_usage = room_week_usage[day]
-                    
-                    duration = int(math.ceil(offering.duration/30))
+            for day in room_usage[room]:
+                for timeslot in room_usage[room][day]:
+
+                    duration = int(math.ceil(Offering.objects.get(id=offering).duration/30))
                     fits = 1
 
                     for j in range(duration):
-                        if room_day_usage[timeslot + j] != 0:
+                        if room_usage[room][day][timeslot + j] != 0:
                             fits = 0
 
                     if fits == 1:
-                        offerings[offering.id] = (room, day, timeslot)
-                        if obj_value(new_offerings) == 0 and solve(new_offerings, not_scheduled-1):
+                        end_timeslot = timeslot+duration
+                        schedule[offering] = (room, day, timeslot, end_timeslot)
+                        if calculate_obj(new_schedule) == 0 and solve(new_schedule, not_scheduled-1):
+                            print "SCHEDULING OFFERING", offering, "INTO"
                             return True
-                        offerings[offering.id] = (False, False, False)
+                        schedule[offering.id] = (False, False, False, False)
     return False
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

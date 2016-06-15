@@ -11,11 +11,3 @@ python manage.py shell --> OPENS PYTHON SCRIPT SHELL
 	VARNAME.OTHERMODELNAME_set.all() --> FINDS ALL ASSOCIATED MODEL INSTANCES OF OTHER MODEL TIED TO VARNAME
 		e.g., prof1.professorunavailability_set.all()
 
-
-NEXT TO DOS:
-	
-	Look up itertools
-	finish views.py
-
-
-
