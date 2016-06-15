@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from scheduler.models import *
 from django.http import HttpResponse
+from itertools import permutations
 import math
 
 #TEST
@@ -85,41 +86,161 @@ def load_unavailability(professor):
 
 def run_optimization():
 
-    #INITIALIZE ROOM USAGE ARRAY
-    global room_usage
-    room_usage = {}
+    # SETUP PERMUTATIONS OF OFFERINGS
+    offering_ids = []
+
+    for offering in Offering.objects.all():
+        offering_ids.append(offering.id)
+
+    offering_permutations = [x for x in permutations(offering_ids)]
+
+    # SETUP PERMUTATIONS OF ROOMS
+    room_ids = []
 
     for room in Room.objects.all():
-        room_usage[room.id] = [[0 for slots in range(NUM_DAILY_TIMESLOTS)] for days in range(NUM_DAYS_IN_WEEK)]
+        room_ids.append(room.id)
 
-    #ITERATE THROUGH ALL PROFESSORS
-    for prof in Professor.objects.all():
-        prof_unavailability = load_unavailability(prof)
+    room_permutations = [x for x in permutations(room_ids)]
+    print room_permutations
+
+    room_availability = { #maps room ID to usage for room
+    0: {
+    'M': [0, 0, 0, 0, 0],
+    'T': [0, 0, 0, 0, 0],
+    'W': [0, 0, 0, 0, 0],
+    'R': [0, 0, 0, 0, 0],
+    'F': [0, 0, 0, 0, 0],
+  },
+    
+  1: {
+    'M': [1, 1, 1, 1, 1],
+    'T': [0, 0, 0, 0, 0],
+    'W': [0, 0, 0, 0, 0],
+    'R': [0, 0, 0, 0, 0],
+    'F': [0, 0, 0, 0, 0],
+  }
+}
+# rooms, offerings, available slots
+
+current_usage = {
+    'M': [1, 1, 0, 0, 0],
+    'T': [0, 0, 0, 0, 0],
+    'W': [0, 0, 0, 0, 0],
+    'R': [0, 0, 0, 0, 0],
+    'F': [0, 0, 0, 0, 0],
+},
+
+{
+    'M': [0, 1, 1, 1]
+  Prof 1 can't do 012
+  prof 2 can't do 03
+  prof 3 can't do 02
+  
+  
+} 
+ 
+
+for prof in Professor.objects.all():
+  while 
+
+for offering in Offerings.objects.all():
+  done = False
+  while not done:
+    for room in rooms:
+      availability = room_availability[room.id]
+      for day in availability:
+        usage = availability[day]
+        for slot in usage:
+          if slot == 0:
+            slot = 1
+            done = True
+            break
+       
+
+
+
+  
+room_id = 0
+result[room_id] # == the usage for the given room; which maps day of week to usage for day
+
+
+
+    # global room_usage
+    # room_usage = {}
+
+    # for room in Room.objects.all():
+    #     room_usage[room.id] = [[0 for slots in range(NUM_DAILY_TIMESLOTS)] for days in range(NUM_DAYS_IN_WEEK)]
+
+    # #ITERATE THROUGH ALL PROFESSORS
+    # for prof in Professor.objects.all():
+    #     prof_unavailability = load_unavailability(prof)
         
-        #ITERATE THROUGH ALL OFFERINGS FOR PROFESSOR N
-        for offering in Offering.objects.filter(section__professor=prof):
-            best_obj = 1000000
-            best_day = False
-            best_start_time = False
-            best_room = False
-            duration = int(math.ceil(offering.duration/30))
+    #     #ITERATE THROUGH ALL OFFERINGS FOR PROFESSOR N
+    #     for offering in Offering.objects.filter(section__professor=prof):
+    #         best_obj = 1000000
+    #         best_day = False
+    #         best_start_time = False
+    #         best_room = False
+    #         duration = int(math.ceil(offering.duration/30))
 
-            for room in Room.objects.all():
-                for i in range (len(prof_unavailability)):
-                    for j in range (len(prof_unavailability[i])-duration+1):
-                        current_obj = calculate_obj(professor=prof, offering=offering, starting_timeslot=j,
-                            day=i, duration=duration, prof_unavailability=prof_unavailability, room=room)
-                        if current_obj < best_obj:
-                            best_obj = current_obj
-                            best_day = i
-                            best_start_time = j
-                            best_room = room
+    #         for room in Room.objects.all():
+    #             for i in range (len(prof_unavailability)):
+    #                 for j in range (len(prof_unavailability[i])-duration+1):
+    #                     current_obj = calculate_obj(professor=prof, offering=offering, starting_timeslot=j,
+    #                         day=i, duration=duration, prof_unavailability=prof_unavailability, room=room)
+    #                     if current_obj < best_obj:
+    #                         best_obj = current_obj
+    #                         best_day = i
+    #                         best_start_time = j
+    #                         best_room = room
 
-            #SET ROOM USAGE ARRAY TO INCLUDE SCHEDULED OFFERING
-            room_array = room_usage.get(best_room.id)
-            for i in range (duration):
-                room_array[best_day][best_start_time+i] = 1
-            room_usage[best_room.id] = room_array
+    #         #SET ROOM USAGE ARRAY TO INCLUDE SCHEDULED OFFERING
+    #         room_array = room_usage.get(best_room.id)
+    #         for i in range (duration):
+    #             room_array[best_day][best_start_time+i] = 1
+    #         room_usage[best_room.id] = room_array
 
-            print (best_obj, best_day, best_start_time, best_room.number, offering.capacity)
-    print room_usage
+    #         print (best_obj, best_day, best_start_time, best_room.number, offering.capacity)
+    # print room_usage
+    
+
+
+    # GREEDY SEARCH RUN
+    # #INITIALIZE ROOM USAGE ARRAY
+    # global room_usage
+    # room_usage = {}
+
+    # for room in Room.objects.all():
+    #     room_usage[room.id] = [[0 for slots in range(NUM_DAILY_TIMESLOTS)] for days in range(NUM_DAYS_IN_WEEK)]
+
+    # #ITERATE THROUGH ALL PROFESSORS
+    # for prof in Professor.objects.all():
+    #     prof_unavailability = load_unavailability(prof)
+        
+    #     #ITERATE THROUGH ALL OFFERINGS FOR PROFESSOR N
+    #     for offering in Offering.objects.filter(section__professor=prof):
+    #         best_obj = 1000000
+    #         best_day = False
+    #         best_start_time = False
+    #         best_room = False
+    #         duration = int(math.ceil(offering.duration/30))
+
+    #         for room in Room.objects.all():
+    #             for i in range (len(prof_unavailability)):
+    #                 for j in range (len(prof_unavailability[i])-duration+1):
+    #                     current_obj = calculate_obj(professor=prof, offering=offering, starting_timeslot=j,
+    #                         day=i, duration=duration, prof_unavailability=prof_unavailability, room=room)
+    #                     if current_obj < best_obj:
+    #                         best_obj = current_obj
+    #                         best_day = i
+    #                         best_start_time = j
+    #                         best_room = room
+
+    #         #SET ROOM USAGE ARRAY TO INCLUDE SCHEDULED OFFERING
+    #         room_array = room_usage.get(best_room.id)
+    #         for i in range (duration):
+    #             room_array[best_day][best_start_time+i] = 1
+    #         room_usage[best_room.id] = room_array
+
+    #         print (best_obj, best_day, best_start_time, best_room.number, offering.capacity)
+    # print room_usage
