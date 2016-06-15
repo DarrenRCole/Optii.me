@@ -1,7 +1,8 @@
 from django.shortcuts import render
 from scheduler.models import *
 from django.http import HttpResponse
-from itertools import permutations
+from itertools import *
+from copy import copy
 import math
 
 #TEST
@@ -19,9 +20,10 @@ NUM_DAYS_IN_WEEK = 5
 # Create your views here.
 def start_algorithm(request):
     run_optimization()
+
     return HttpResponse("A-OK!")
 
-def calculate_obj(professor, offering, starting_timeslot, day, duration, prof_unavailability, room):
+def calculate_obj():
     obj_value = 0
     
     #FIND PENALTY FOR PROF UNAVAILABILITY CONSTRAINT
@@ -45,123 +47,109 @@ def calculate_obj(professor, offering, starting_timeslot, day, duration, prof_un
     return obj_value
 
 
-def load_unavailability(professor):
-    prof_unavailability = [[0 for slots in range(NUM_DAILY_TIMESLOTS)] for days in range(NUM_DAYS_IN_WEEK)]
-    for unavailability in professor.professorunavailability_set.all():
-        day = unavailability.day
-        if day == 'm':
-            day = 0
-        elif day == 't':
-            day = 1
-        elif day == 'w':
-            day = 2
-        elif day == 'r':
-            day = 3
-        elif day == 'f':
-            day = 4
-        elif day == 's':
-            day = 5
-        elif day == 'n':
-            day = 6
+def load_prof_unavailability():
+    
+    global prof_unavailability
+    prof_unavailability = {}
 
-        start_hour, start_minute = unavailability.start_time.split(":")
-        start_hour = int(start_hour)
-        start_minute = int(start_minute)
-        end_hour, end_minute = unavailability.end_time.split(":")
-        end_hour = int(end_hour)
-        end_minute = int(end_minute)
-        preference_level = unavailability.preference_level
+    for professor in Professor.objects.all():
+        prof_unavailability[professor.id] = {
+        'm': [0] * NUM_DAILY_TIMESLOTS,
+        't': [0] * NUM_DAILY_TIMESLOTS,
+        'w': [0] * NUM_DAILY_TIMESLOTS,
+        'r': [0] * NUM_DAILY_TIMESLOTS,
+        'f': [0] * NUM_DAILY_TIMESLOTS,
+        }    
+        
+        for unavailability in professor.professorunavailability_set.all():
+            start_hour, start_minute = unavailability.start_time.split(":")
+            start_hour = int(start_hour)
+            start_minute = int(start_minute)
+            end_hour, end_minute = unavailability.end_time.split(":")
+            end_hour = int(end_hour)
+            end_minute = int(end_minute)
+            preference_level = unavailability.preference_level
 
-        start_slot = int((start_hour - 8)*2 + math.floor(start_minute/30))
-        end_slot = int((end_hour - 8)*2 + math.floor(end_minute/30))
+            start_slot = int((start_hour - 8)*2 + math.floor(start_minute/30))
+            end_slot = int((end_hour - 8)*2 + math.floor(end_minute/30))
 
-        for slot in range (start_slot, end_slot):
-            #CHECK PROF PREFERENCES
-            if preference_level == 1:
-                prof_unavailability[day][slot] = 1
-            else:
-                prof_unavailability[day][slot] = 2
-
-    return prof_unavailability
+            for slot in range (start_slot, end_slot):
+                #CHECK PROF PREFERENCES
+                if preference_level == 1:
+                    prof_unavailability[professor.id][unavailability.day][slot] = 1
+                else:
+                    prof_unavailability[professor.id][unavailability.day][slot] = 2
+    print prof_unavailability
 
 def run_optimization():
 
-    # SETUP PERMUTATIONS OF OFFERINGS
-    offering_ids = []
+    load_prof_unavailability()
 
+    global offerings
+    offerings = {}
+    
     for offering in Offering.objects.all():
-        offering_ids.append(offering.id)
+        offerings[offering.id] = (False, False, False)
 
-    offering_permutations = [x for x in permutations(offering_ids)]
-
-    # SETUP PERMUTATIONS OF ROOMS
-    room_ids = []
+    global room_usage
+    room_usage = {}
 
     for room in Room.objects.all():
-        room_ids.append(room.id)
+        room_usage[room.id] = {
+        'm': [0] * NUM_DAILY_TIMESLOTS,
+        't': [0] * NUM_DAILY_TIMESLOTS,
+        'w': [0] * NUM_DAILY_TIMESLOTS,
+        'r': [0] * NUM_DAILY_TIMESLOTS,
+        'f': [0] * NUM_DAILY_TIMESLOTS,
+        }
 
-    room_permutations = [x for x in permutations(room_ids)]
-    print room_permutations
 
-    room_availability = { #maps room ID to usage for room
-    0: {
-    'M': [0, 0, 0, 0, 0],
-    'T': [0, 0, 0, 0, 0],
-    'W': [0, 0, 0, 0, 0],
-    'R': [0, 0, 0, 0, 0],
-    'F': [0, 0, 0, 0, 0],
-  },
-    
-  1: {
-    'M': [1, 1, 1, 1, 1],
-    'T': [0, 0, 0, 0, 0],
-    'W': [0, 0, 0, 0, 0],
-    'R': [0, 0, 0, 0, 0],
-    'F': [0, 0, 0, 0, 0],
-  }
-}
-# rooms, offerings, available slots
+def solve (offerings, not_scheduled = len(offerings)):
+    if empties == 0:
+        return obj_value(offerings)
+    for offering in offerings:
+        if offering[0] != False:
+            continue
+        new_offerings = copy(offerings)
+        for room in room_usage:
+            for day in room:
+                for timeslot in day:
+                    room_week_usage = room_usage[room]
+                    room_day_usage = room_week_usage[day]
+                    
+                    duration = int(math.ceil(offering.duration/30))
+                    fits = 1
 
-current_usage = {
-    'M': [1, 1, 0, 0, 0],
-    'T': [0, 0, 0, 0, 0],
-    'W': [0, 0, 0, 0, 0],
-    'R': [0, 0, 0, 0, 0],
-    'F': [0, 0, 0, 0, 0],
-},
+                    for j in range(duration):
+                        if room_day_usage[timeslot + j] != 0:
+                            fits = 0
 
-{
-    'M': [0, 1, 1, 1]
-  Prof 1 can't do 012
-  prof 2 can't do 03
-  prof 3 can't do 02
-  
-  
-} 
- 
-
-for prof in Professor.objects.all():
-  while 
-
-for offering in Offerings.objects.all():
-  done = False
-  while not done:
-    for room in rooms:
-      availability = room_availability[room.id]
-      for day in availability:
-        usage = availability[day]
-        for slot in usage:
-          if slot == 0:
-            slot = 1
-            done = True
-            break
-       
+                    if fits == 1:
+                        offerings[offering.id] = (room, day, timeslot)
+                        if obj_value(new_offerings) == 0 and solve(new_offerings, not_scheduled-1):
+                            return True
+                        offerings[offering.id] = (False, False, False)
+    return False
 
 
 
-  
-room_id = 0
-result[room_id] # == the usage for the given room; which maps day of week to usage for day
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
