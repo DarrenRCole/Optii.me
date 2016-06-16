@@ -14,6 +14,7 @@ PROF_S_CONSTRAINT_CODE = 1
 ROOM_TOO_SMALL_PENALTY = 9999
 ROOM_TOO_LARGE_PENALTY = 50
 ROOM_IN_USE_PENALTY = 55555
+TIME_NOT_IN_DAY_PENALTY = 44444
 NUM_DAILY_TIMESLOTS = 20
 NUM_DAYS_IN_WEEK = 5
 
@@ -25,11 +26,19 @@ def start_algorithm(request):
 
     return HttpResponse("A-OK!")
 
-def calculate_obj(schedule):
+def calculate_obj(schedule, overlapping_offerings):
     obj_value = 0
     
     for offering in schedule:
         if schedule[offering][0] != False:
+            if schedule[offering][3] > (NUM_DAILY_TIMESLOTS-1):
+                obj_value += TIME_NOT_IN_DAY_PENALTY
+                return obj_value
+
+            if overlapping_offerings != 0:
+                obj_value += ROOM_IN_USE_PENALTY
+                return obj_value
+
             for unavailability in ProfessorUnavailability.objects.all():
                 start_hour, start_minute = unavailability.start_time.split(":")
                 start_hour = int(start_hour)
@@ -43,7 +52,7 @@ def calculate_obj(schedule):
                 end_slot = int((end_hour - 8)*2 + math.floor(end_minute/30))
 
                 for slot in range (start_slot, end_slot):
-                    if slot >= offering[2] and slot <= offering[3]: 
+                    if slot >= schedule[offering][2] and slot <= schedule[offering][3]: 
                         if preference_level == PROF_S_CONSTRAINT_CODE:
                             obj_value += PROF_S_CONSTRAINT_PENALTY
                         elif preference_level == PROF_H_CONSTRAINT_CODE:
@@ -102,12 +111,11 @@ def run_optimization():
 
     solve (offerings, not_scheduled = len(offerings))
 
+    print room_usage
 
 def solve (schedule, not_scheduled):
     if not_scheduled == 0:
-        print schedule
-        print (calculate_obj(schedule))
-        return (calculate_obj(schedule)==0)
+        return (calculate_obj(schedule, 0)==0)
 
     for offering in schedule:
         if schedule[offering][0] != False:
@@ -115,22 +123,30 @@ def solve (schedule, not_scheduled):
         new_schedule = copy(schedule)
         for room in room_usage:
             for day in room_usage[room]:
-                for timeslot in room_usage[room][day]:
-
+                for timeslot in range(len(room_usage[room][day])):
+                    overlapping_offerings = 0
                     duration = int(math.ceil(Offering.objects.get(id=offering).duration/30))
-                    fits = 1
+                    end_timeslot = timeslot+duration
+                    new_schedule[offering] = (room, day, timeslot, end_timeslot)
 
-                    for j in range(duration):
-                        if room_usage[room][day][timeslot + j] != 0:
-                            fits = 0
+                    for room_slot in range(duration):
+                        if timeslot+room_slot < NUM_DAILY_TIMESLOTS:
+                            if room_usage[room][day][timeslot+room_slot] == 1:
+                                overlapping_offerings += 1
+                            else:
+                                room_usage[room][day][timeslot+room_slot] = 1
 
-                    if fits == 1:
-                        end_timeslot = timeslot+duration
-                        schedule[offering] = (room, day, timeslot, end_timeslot)
-                        if calculate_obj(new_schedule) == 0 and solve(new_schedule, not_scheduled-1):
-                            print "SCHEDULING OFFERING", offering, "INTO"
-                            return True
-                        schedule[offering.id] = (False, False, False, False)
+                    if calculate_obj(new_schedule, overlapping_offerings) == 0 and solve(new_schedule, not_scheduled-1):
+                        print("SCHEDULING", offering, room, day, timeslot)
+                        print room_usage
+                        return True
+                    
+                    for room_slot in range(duration):
+                        if timeslot+room_slot < NUM_DAILY_TIMESLOTS:
+                            room_usage[room][day][timeslot+room_slot] = 0
+
+                    new_schedule[offering] = (False, False, False, False)
+
     return False
 
 
