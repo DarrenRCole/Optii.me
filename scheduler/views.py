@@ -101,6 +101,7 @@ def run_optimization():
         offerings[offering.id] = (False, False, False, False) #ROOM, DAY, STARTING TIMESLOT, ENDING TIMESLOT
 
     for room in Room.objects.all():
+
         room_usage[room.id] = {
         'm': [0] * NUM_DAILY_TIMESLOTS,
         't': [0] * NUM_DAILY_TIMESLOTS,
@@ -125,25 +126,33 @@ def solve (schedule, not_scheduled):
             for day in room_usage[room]:
                 for timeslot in range(len(room_usage[room][day])):
                     overlapping_offerings = 0
+                    offerings_scheduled = []
                     duration = int(math.ceil(Offering.objects.get(id=offering).duration/30))
                     end_timeslot = timeslot+duration
                     new_schedule[offering] = (room, day, timeslot, end_timeslot)
 
                     for room_slot in range(duration):
                         if timeslot+room_slot < NUM_DAILY_TIMESLOTS:
-                            if room_usage[room][day][timeslot+room_slot] == 1:
+                            print (timeslot, room_slot)
+                            if room_usage[room][day][timeslot+room_slot] != 0:
                                 overlapping_offerings += 1
+                                print room_usage
+                                print ("so don't schedule")
                             else:
-                                room_usage[room][day][timeslot+room_slot] = 1
+                                print room_usage
+                                room_usage[room][day][timeslot+room_slot] = offering
+                                offerings_scheduled.append(timeslot+room_slot)
+                                print ("so schedule")
+
+                    print ("AFTER", room_usage)
 
                     if calculate_obj(new_schedule, overlapping_offerings) == 0 and solve(new_schedule, not_scheduled-1):
                         print("SCHEDULING", offering, room, day, timeslot)
-                        print room_usage
                         return True
                     
-                    for room_slot in range(duration):
-                        if timeslot+room_slot < NUM_DAILY_TIMESLOTS:
-                            room_usage[room][day][timeslot+room_slot] = 0
+                    for room_slot in offerings_scheduled:
+                        print room_slot
+                        room_usage[room][day][room_slot] = 0
 
                     new_schedule[offering] = (False, False, False, False)
 
