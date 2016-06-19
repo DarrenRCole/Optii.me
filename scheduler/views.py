@@ -4,6 +4,7 @@ from django.http import HttpResponse
 from itertools import *
 from copy import copy
 import math
+import time
 
 #TEST
 
@@ -95,6 +96,8 @@ def load_prof_unavailability():
 
 def run_optimization():
 
+    start_time = time.time()
+
     load_prof_unavailability()
     
     for offering in Offering.objects.all():
@@ -113,6 +116,7 @@ def run_optimization():
     solve (offerings, not_scheduled = len(offerings))
 
     print room_usage
+    print("--- %s seconds ---" % (time.time() - start_time))
 
 def solve (schedule, not_scheduled):
     if not_scheduled == 0:
@@ -133,71 +137,22 @@ def solve (schedule, not_scheduled):
 
                     for room_slot in range(duration):
                         if timeslot+room_slot < NUM_DAILY_TIMESLOTS:
-                            print (timeslot, room_slot)
-                            if room_usage[room][day][timeslot+room_slot] != 0:
+                            if room_usage[room][day][timeslot+room_slot]!= 0:
                                 overlapping_offerings += 1
-                                print room_usage
-                                print ("so don't schedule")
                             else:
-                                print room_usage
                                 room_usage[room][day][timeslot+room_slot] = offering
                                 offerings_scheduled.append(timeslot+room_slot)
-                                print ("so schedule")
-
-                    print ("AFTER", room_usage)
 
                     if calculate_obj(new_schedule, overlapping_offerings) == 0 and solve(new_schedule, not_scheduled-1):
-                        print("SCHEDULING", offering, room, day, timeslot)
                         return True
                     
                     for room_slot in offerings_scheduled:
-                        print room_slot
                         room_usage[room][day][room_slot] = 0
 
                     new_schedule[offering] = (False, False, False, False)
 
     return False
 
-
-
-    # global room_usage
-    # room_usage = {}
-
-    # for room in Room.objects.all():
-    #     room_usage[room.id] = [[0 for slots in range(NUM_DAILY_TIMESLOTS)] for days in range(NUM_DAYS_IN_WEEK)]
-
-    # #ITERATE THROUGH ALL PROFESSORS
-    # for prof in Professor.objects.all():
-    #     prof_unavailability = load_unavailability(prof)
-        
-    #     #ITERATE THROUGH ALL OFFERINGS FOR PROFESSOR N
-    #     for offering in Offering.objects.filter(section__professor=prof):
-    #         best_obj = 1000000
-    #         best_day = False
-    #         best_start_time = False
-    #         best_room = False
-    #         duration = int(math.ceil(offering.duration/30))
-
-    #         for room in Room.objects.all():
-    #             for i in range (len(prof_unavailability)):
-    #                 for j in range (len(prof_unavailability[i])-duration+1):
-    #                     current_obj = calculate_obj(professor=prof, offering=offering, starting_timeslot=j,
-    #                         day=i, duration=duration, prof_unavailability=prof_unavailability, room=room)
-    #                     if current_obj < best_obj:
-    #                         best_obj = current_obj
-    #                         best_day = i
-    #                         best_start_time = j
-    #                         best_room = room
-
-    #         #SET ROOM USAGE ARRAY TO INCLUDE SCHEDULED OFFERING
-    #         room_array = room_usage.get(best_room.id)
-    #         for i in range (duration):
-    #             room_array[best_day][best_start_time+i] = 1
-    #         room_usage[best_room.id] = room_array
-
-    #         print (best_obj, best_day, best_start_time, best_room.number, offering.capacity)
-    # print room_usage
-    
 
 
     # GREEDY SEARCH RUN
