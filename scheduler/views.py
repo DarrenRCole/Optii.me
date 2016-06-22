@@ -6,8 +6,6 @@ from copy import copy
 import math
 import time
 
-#TEST
-
 PROF_H_CONSTRAINT_PENALTY = 10000
 PROF_H_CONSTRAINT_CODE = 2
 PROF_S_CONSTRAINT_PENALTY = 10
@@ -40,7 +38,11 @@ def calculate_obj(schedule, overlapping_offerings):
                 obj_value += ROOM_IN_USE_PENALTY
                 return obj_value
 
-            for unavailability in ProfessorUnavailability.objects.all():
+            offering_object_list = Offering.objects.filter(id=offering)
+            offering_object = offering_object_list[0]
+            prof = offering_object.section.professor
+
+            for unavailability in ProfessorUnavailability.objects.filter(professor=prof):
                 start_hour, start_minute = unavailability.start_time.split(":")
                 start_hour = int(start_hour)
                 start_minute = int(start_minute)
@@ -52,13 +54,13 @@ def calculate_obj(schedule, overlapping_offerings):
                 start_slot = int((start_hour - 8)*2 + math.floor(start_minute/30))
                 end_slot = int((end_hour - 8)*2 + math.floor(end_minute/30))
 
-                for slot in range (start_slot, end_slot):
-                    if slot >= schedule[offering][2] and slot <= schedule[offering][3]: 
-                        if preference_level == PROF_S_CONSTRAINT_CODE:
-                            obj_value += PROF_S_CONSTRAINT_PENALTY
-                        elif preference_level == PROF_H_CONSTRAINT_CODE:
-                            obj_value += PROF_H_CONSTRAINT_PENALTY
-
+                if (unavailability.day == schedule[offering][1]):
+                    for slot in range (start_slot, end_slot):
+                        if slot >= schedule[offering][2] and slot <= schedule[offering][3]: 
+                            if preference_level == PROF_S_CONSTRAINT_CODE:
+                                obj_value += PROF_S_CONSTRAINT_PENALTY
+                            elif preference_level == PROF_H_CONSTRAINT_CODE:
+                                obj_value += PROF_H_CONSTRAINT_PENALTY
     return obj_value
 
 def load_prof_unavailability():
@@ -142,7 +144,7 @@ def solve (schedule, not_scheduled):
                             else:
                                 room_usage[room][day][timeslot+room_slot] = offering
                                 offerings_scheduled.append(timeslot+room_slot)
-
+                                
                     if calculate_obj(new_schedule, overlapping_offerings) == 0 and solve(new_schedule, not_scheduled-1):
                         return True
                     
