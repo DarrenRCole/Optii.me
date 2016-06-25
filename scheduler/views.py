@@ -145,6 +145,8 @@ def solve (schedule, not_scheduled):
                                 room_usage[room][day][timeslot+room_slot] = offering
                                 offerings_scheduled.append(timeslot+room_slot)
                                 
+                    print(room_usage)
+
                     if calculate_obj(new_schedule, overlapping_offerings) == 0 and solve(new_schedule, not_scheduled-1):
                         return True
                     
