@@ -18,5 +18,6 @@ from django.contrib import admin
 
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
-    url(r'^$', 'scheduler.views.start_algorithm'),
+    url(r'^$', 'OptiiMe.views.render_home'),
+    url(r'^start_alg/', 'scheduler.views.start_algorithm'),
 ]
